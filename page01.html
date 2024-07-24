@@ -1,0 +1,17 @@
+﻿<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <title>PS-Edge Test</title>
+  </head>
+  <body>
+    <p>Window Title Set: <input type="text" id="inputTitle" /><button id="submitTitle">Set Title</button></p>
+    <p>Current Window Position:<br>X=<span id="xPos"></span>,<br>Y=<span id="yPos"></span>.</p>
+    <p><button onclick="gate.window.getMember()">get member</button></p>
+    <p><button onclick="gate.window.setProperty('left', 0)">set left 0</button></p>
+    <textarea ondblclick="invokeTest(this.value)">
+    1 + 2
+    </textarea>
+  </body>
+</html>
+<script src="script.js"></script>

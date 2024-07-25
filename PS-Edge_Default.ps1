@@ -67,6 +67,10 @@ $urlText  = $window.findName("pageURL")
 $webview.CreationProperties = New-Object 'Microsoft.Web.WebView2.Wpf.CoreWebView2CreationProperties'
 $webview.CreationProperties.UserDataFolder = (Join-Path $PSScriptRoot "data")
 $webview.Source = "file:///" + (Join-Path $PSScriptRoot "page01.html")
+Set-Location $PSScriptRoot
+
+# ここではPathの代入でIconを設定できるが、JS側からInvokeでPathを代入しようとすると「"値 "icon.ico" を型 "System.Windows.Media.ImageSource" に変換できません。」というエラーになってしまう。
+$window.Icon = (Join-Path $PSScriptRoot "icon.ico")
 
 <# Set EventListener #>
 $goButton.add_Click({
@@ -93,8 +97,12 @@ $webview.add_WebMessageReceived({
         $objArg.callBackId = $json.numCallBack
         Post2jsAsJson($objArg)
     }
-    
-	if($json.act -eq 'Set'){
+
+	if(
+        $json.act -eq 'Set' -or
+        $json.act -eq 'Get' -or
+        $json.act -eq 'GetMember'
+    ){
         $target = $json.arg.target
         if($target[0] -eq 'window'){
             $currentObj = $window
@@ -102,15 +110,35 @@ $webview.add_WebMessageReceived({
             return $CallBack.Invoke(@{err="対応していないオブジェクト・プロパティです。[$target[0]]"})
         }
         $last = $target.Length
-        For($i=1 ; $i -lt $last ; $i++){
-            $name       = $json.arg.target[$i]
-            if(($i+1) -eq $last){
-                $currentObj.$name = $json.arg.value
-                break
+        Try{
+            For($i=1 ; $i -lt $last ; $i++){
+                $name       = $json.arg.target[$i]
+                if(($i+1) -eq $last){
+                    if($json.act -eq 'Set'){
+                        $currentObj.$name = $json.arg.value
+                        return $CallBack.Invoke()
+                    }
+                    if($json.act -eq 'Get'){
+                        return $CallBack.Invoke(@{value=$currentObj.$name})
+                    }
+                }
+                $currentObj = $currentObj.$name
             }
-            $currentObj = $currentObj.$name
+            if($json.act -eq 'GetMember'){
+                $res = $currentObj | Get-Member
+                return $CallBack.Invoke(@{value=$res})
+            }
+        }Catch{
+            return $CallBack.Invoke(
+                @{err=
+                    @{
+                        key     = $target;
+                        Message = $_.Exception.Message;
+                    }
+                }
+            )
         }
-        
+
         <# 以下は、argの中身が{window:{title:title}}のような形式だった時のコード。
             最終的に代入する値が常にスカラタイプならそれで良いが、オブジェクト型などを代入したい場合、以下では対応できない。
 		if($json.arg | Get-Member -Name 'window'){
@@ -122,56 +150,6 @@ $webview.add_WebMessageReceived({
 		}
         #>
         return $CallBack.Invoke()
-	}
-	
-	if($json.act -eq 'Get'){
-        $target = $json.arg.target
-        if($target[0] -eq 'window'){
-            $currentObj = $window
-        }else{
-            return $CallBack.Invoke(@{err="対応していないオブジェクト・プロパティです。[$target[0]]"})
-        }
-        $last = $target.Length
-        For($i=1 ; $i -lt $last ; $i++){
-            $name       = $json.arg.target[$i]
-            if(($i+1) -eq $last){
-                return $CallBack.Invoke(@{value=$currentObj.$name})
-            }
-            $currentObj = $currentObj.$name
-        }
-	}
-	
-	if($json.act -eq 'GetMember'){
-        $target = $json.arg.target
-        if($target[0] -eq 'window'){
-            $currentObj = $window
-        }else{
-            return $CallBack.Invoke(@{err="対応していないオブジェクト・プロパティです。[$target[0]]"})
-        }
-        $last = $target.Length
-        For($i=1 ; $i -lt $last ; $i++){
-            $name       = $json.arg.target[$i]
-            $currentObj = $currentObj.$name
-        }
-        <# error EventListener Closed
-        [string]$res = $currentObj | Get-Member | ForEach -Process { $_.ToString() + "`n" }
-        return $CallBack.Invoke($res -split "`n")
-        #>
-        <# error EventListener Closed
-        $res = $currentObj | Get-Member | ForEach -Process { [string]$_ }
-        return $CallBack.Invoke($res)
-        #>
-        <# 全部繋がっちゃう
-        [string]$res = $currentObj | Get-Member | ForEach -Process { $_ }
-        return $CallBack.Invoke($res)
-        #>
-        <# error EventListener Closed
-        [string]$res = $currentObj | Get-Member | ForEach -Process { $_.ToString() + "`n" }
-        return $CallBack.Invoke($res)
-        #>
-        # 2行目以降の行頭に余分なスペースが入る…。
-        [string]$res = $currentObj | Get-Member | ForEach -Process { $_.ToString() + "`n" }
-        return $CallBack.Invoke(@{value=$res})
 	}
 	
 	if($json.act -eq 'Invoke'){

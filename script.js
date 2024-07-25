@@ -13,6 +13,8 @@
 		    document.querySelector('#yPos').innerText = value.Top
         }
     )
+
+    // gate.window.setProperty('Icon.BaseUri', "icon.ico")
 })
 
 invokeTest = async (psCode)=>{
@@ -75,7 +77,11 @@ gate = function(){
                     const escapedValue = (value+'').replace(/"/g,'`"')
                     return await PowerShell.invoke((isAdd ? 'Add' : 'Set') + `-Content "${path}" "${escapedValue}" -NoNewline` + (isSJIS ? ' -Encoding Ascii' : 'UTF8'))
                 }
-            }
+            },
+            create : async (path, isFile=false         )=>{ return await PowerShell.invoke(`New-Item "${path}"` + (isFile ? '' : ' -ItemType Directory')) },
+            delete : async (path                       )=>{ return await PowerShell.invoke(`Remove-Item "${path}"`) },
+            move   : async (pathSource, pathDistination)=>{ return await PowerShell.invoke(`Move-Item "${pathSource}" "${pathDestination}"`) },
+            copy   : async (pathSource, pathDistination)=>{ return await PowerShell.invoke(`Copy-Item "${pathSource}" "${pathDestination}" -Recurse`) }
         }
     }()
     
@@ -89,7 +95,8 @@ gate = function(){
                 // keyの例：「position」「location」
                 const target = ('window'+(key ? '/'+key : '')).split('/')
                 const res = await PowerShell.sendPromise('getMember', {target})
-                return res.split('\n ').sort()
+                // return res.split('\n ').sort()
+                return res.sort((a,b)=>{ return a.Name < b.Name })
             },
 			setProperty : async (key, value)=>{ return await PowerShell.sendPromise('set', {target:('window.'+key).split('.'), value:value}) }
 		},
